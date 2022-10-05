@@ -37,12 +37,12 @@ gsutil -u your_project_id ls gs://ukb-diverse-pops-public/sumstats_release
 
 ## Using the libraries and files
 
-The files on Google Cloud Platform can be accessed by cloning the [ukbb_pan_ancestry](https://github.com/atgu/ukbb_pan_ancestry) and the [ukb_common](https://github.com/Nealelab/ukb_common) repos and accessing them programmatically. We recommend using these functions, as they allow for automatic application of our QC metrics as well as inclusion of all [QC flags](https://pan.ukbb.broadinstitute.org/docs/qc#quality-control-of-summary-statistics) and convenience metrics such as lambda GC. By default, when loading using `load_final_sumstats_mt`, the best practice QC parameters are used, which removes traits with a lambda GC < 0.5 or > 5 as well as applying all [QC filters](https://pan.ukbb.broadinstitute.org/docs/qc#quality-control-of-summary-statistics). This results in importing summary statistics for 527 traits; if it is preferable to load all traits with exported summary statistics (e.g., only applying the lambda GC < 0.5 or > 5 filter), use `load_final_sumstats_mt(filter_pheno_h2_qc=False)`, resulting in 7,228 traits. If any filtering is undesirable, use `load_final_sumstats_mt(filter_pheno_h2_qc=False, filter_phenos=False)`, which will import all 7,271 traits.
+The files on Google Cloud Platform can be accessed by cloning the [ukbb_pan_ancestry](https://github.com/atgu/ukbb_pan_ancestry) and the [ukbb_common](https://github.com/Nealelab/ukbb_common) repos and accessing them programmatically. We recommend using these functions, as they apply our QC metrics (e.g. the raw file contains 7,271 phenotypes, but use of this function will return 7,221 phenotypes after removing low-quality ones) and include convenience metrics such as lambda GC.
 
 ```
 %%bash
 git clone https://github.com/atgu/ukbb_pan_ancestry
-git clone https://github.com/Nealelab/ukb_common
+git clone https://github.com/Nealelab/ukbb_common
 ```
 
 

@@ -1,7 +1,7 @@
 __author__ = 'Rahul Gupta'
 
 import hail as hl
-from ukb_common.resources.generic import PHENO_KEY_FIELDS
+from ukbb_common.resources.generic import PHENO_KEY_FIELDS
 from ukbb_pan_ancestry.resources.results import get_h2_ht_path, get_h2_flat_file_path
 
 
@@ -22,8 +22,8 @@ def qc_to_flags(qc_struct):
 
 def import_h2_flat_file(save_to_ht, overwrite):
     ht = hl.import_table(get_h2_flat_file_path(),
-                         delimiter='\t', 
-                         impute=True, 
+                         delimiter='\t',
+                         impute=True,
                          key=PHENO_KEY_FIELDS)
     ht = ht.rename({'ancestry':'pop'})
     ht = ht.drop('phenotype_id')
@@ -48,8 +48,8 @@ def import_h2_flat_file(save_to_ht, overwrite):
     for name in row:
         if name not in ht.key:
             recur(d, name.split('.'))
-    
-    
+
+
     def dict_to_struct(d):
         fields = {}
         for k, v in d.items():
@@ -57,8 +57,8 @@ def import_h2_flat_file(save_to_ht, overwrite):
                 v = dict_to_struct(v)
             fields[k] = v
         return hl.struct(**fields)
-    
-    
+
+
     ht = ht.select(**dict_to_struct(d))
     ht_collect = ht.collect_by_key().rename({'values':'heritability'})
     ht_collect_sorted = ht_collect.annotate(heritability = hl.sorted(ht_collect.heritability, key=lambda x: x.pop))
