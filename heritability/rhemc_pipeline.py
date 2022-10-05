@@ -2,9 +2,9 @@ __author__ = 'Rahul Gupta'
 
 import hail as hl
 
-# hl.init(spark_conf={'spark.hadoop.fs.gs.requester.pays.mode': 'CUSTOM',
-#                     'spark.hadoop.fs.gs.requester.pays.buckets': 'ukb-diverse-pops-public',
-#                     'spark.hadoop.fs.gs.requester.pays.project.id': 'ukbb-diversepops-neale'})
+hl.init(spark_conf={'spark.hadoop.fs.gs.requester.pays.mode': 'CUSTOM',
+                    'spark.hadoop.fs.gs.requester.pays.buckets': 'ukb-diverse-pops-public',
+                    'spark.hadoop.fs.gs.requester.pays.project.id': 'ukbb-diversepops-neale'})
 
 import hailtop.batch as hb
 import numpy as np
@@ -27,8 +27,8 @@ from ukbb_pan_ancestry.resources.results import get_variant_results_path
 
 # paths
 bucket = 'ukb-diverse-pops'
-fusebucket = 'rgupta-pcgc-mount'
-loc = 'rg-pcgc'
+fusebucket = 'rgupta-rhemc-mount'
+loc = 'rg-rhemc-affix'
 path_geno = f'gs://{bucket}/{loc}/genos/'
 path_pheno = f'gs://{bucket}/{loc}/phenos/'
 path_covar = f'gs://{bucket}/{loc}/covar/'
@@ -339,24 +339,33 @@ def generate_geno_annot_split(path_geno, path_annot, ancestries, args, nbins):
         mt_filt = hl.read_matrix_table(geno_filtered_path)
     else:
         logging.info('Filtering genotype MatrixTable...')
-        # import variant level data
-        af_ht = hl.read_table(get_ukb_af_ht_path())
-
-        # filter MAF > cutoff (in all populations) and is defined (all populations)
-        af_ht_f = af_ht.filter(hl.all(lambda x: hl.is_defined(af_ht.af[x]), 
-                                      hl.literal(ancestries)))
-        af_ht_f = af_ht_f.filter(hl.all(lambda x: (af_ht.af[x] >= args.maf) & \
-                                                  (af_ht.af[x] <= (1-args.maf)), 
-                                      hl.literal(ancestries)))
-        mt_maf = mt.filter_rows(hl.is_defined(af_ht_f[mt.row_key]))
 
         # remove relateds
-        mt_nonrel = mt_maf.filter_cols(~mt_maf.related)
+        mt_nonrel = mt.filter_cols(~mt.related)
+
+        # filter MAF > cutoff (in all populations) and is defined (all populations)
+        custom_af_ht_path = MT_TEMP_BUCKET + 'rhemc_custom_af_ht.ht'
+        if hl.hadoop_is_file(custom_af_ht_path + '/_SUCCESS'):
+            af_ht = hl.read_table(custom_af_ht_path)
+        else:
+            af_mt = mt_nonrel.group_cols_by(mt_nonrel.pop).aggregate(call_info = hl.agg.call_stats(mt_nonrel.GT, mt_nonrel.alleles))
+            af_mt = af_mt.annotate_entries(**{x: af_mt.call_info[x] for x in af_mt.call_info.keys()}).drop('call_info')
+            af_ht = af_mt.localize_entries('col_info', 'pops')
+            af_ht = af_ht.annotate(af_dict = hl.dict(hl.zip(af_ht.pops.pop, af_ht.col_info.AF, fill_missing=True))).drop('col_info')
+            af_ht = af_ht.annotate(af = af_ht.af_dict.map_values(lambda x: x[1]))
+            af_ht = af_ht.checkpoint(custom_af_ht_path, overwrite=True)
+       
+        af_ht_f = af_ht.filter(hl.all(lambda x: hl.is_defined(af_ht.af[x]), 
+                                      hl.literal(ancestries)))
+        af_ht_f = af_ht_f.filter(hl.all(lambda x: (af_ht_f.af[x] >= args.maf) & \
+                                                  (af_ht_f.af[x] <= (1-args.maf)), 
+                                      hl.literal(ancestries)))
+        mt_maf = mt_nonrel.semi_join_rows(af_ht_f)
 
         # compute phwe, remove those with p < 1e-7
-        mt_nonrel_hwe = mt_nonrel.annotate_rows(**{'hwe_' + anc.lower(): 
-                                                    hl.agg.filter(mt_nonrel.pop == anc, 
-                                                                  hl.agg.hardy_weinberg_test(mt_nonrel.GT)) 
+        mt_nonrel_hwe = mt_maf.annotate_rows(**{'hwe_' + anc.lower(): 
+                                                    hl.agg.filter(mt_maf.pop == anc, 
+                                                                  hl.agg.hardy_weinberg_test(mt_maf.GT)) 
                                                     for anc in ancestries})
         ancestries_tf = [mt_nonrel_hwe['hwe_' + anc.lower()].p_value >= PHWE for anc in ancestries]
         mt_nonrel_hwe = mt_nonrel_hwe.filter_rows(hl.all(lambda x: x, ancestries_tf))
@@ -393,7 +402,7 @@ def generate_geno_annot_split(path_geno, path_annot, ancestries, args, nbins):
     output_files_annot_noextn = get_annot_split_names(ancestries, dictout=True, n_annot=nbins, suffix_incl=False)
     for anc in ancestries:
         ht_anc = hl.read_table(get_ld_score_ht_path(pop=anc))
-        ht_anc_expr = ht_anc[snps_out.row_key]
+        ht_anc_expr = ht_anc[snps_out.key]
         this_tab = snps_out.annotate(ld_score = ht_anc_expr.ld_score,
                                      af = ht_anc_expr.AF)
         this_tab = this_tab.annotate(maf = 0.5 - hl.abs(0.5 - this_tab.af))
