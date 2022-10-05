@@ -27,7 +27,7 @@ def get_phenotype_results_qc_path(extension: str = 'ht'):
 
 
 def get_h2_flat_file_path():
-    return f'{public_bucket_free}/h2/h2_estimates_all_flat_211101.tsv'
+    return f'{public_bucket_free}/h2/h2_estimates_all_flat_220317.tsv'
 
 
 def get_h2_ht_path():
@@ -35,7 +35,7 @@ def get_h2_ht_path():
 
 
 def get_maximal_independent_set_path():
-    return f'{public_bucket_free}/qc/Max_indep_set_phenos_h2QC_10_tiebreakCasenum.ht'
+    return f'{public_bucket_free}/qc/Max_indep_set_phenos_h2QC_10_tiebreakCasenum_FINAL.ht'
 
 
 def get_maximal_indepenedent_set_ht():
